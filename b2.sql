@@ -1,23 +1,32 @@
-update Appointments
-set status = 'Completed'
-where appointment_id = 104;
-
--- Phải dùng OLD vì cần kiểm tra lịch khám trước khi update đã Completed hay chưa.
--- NEW là trạng thái mới người dùng muốn cập nhật.
-
-drop trigger if exists PreventStatusRevert;
+drop procedure if exists TransferBed;
 
 delimiter //
 
-create trigger PreventStatusRevert
-before update
-on Appointments
-for each row
+create procedure TransferBed(
+    in p_patient_id int,
+    in p_new_bed_id int
+)
 begin
-    if OLD.status = 'Completed' then
-        signal sqlstate '45000'
-        set message_text = 'Khong duoc phep thay doi lich kham da Completed';
-    end if;
+
+    declare exit handler for sqlexception
+    begin
+        rollback;
+    end;
+
+    start transaction;
+
+    -- Giải phóng giường cũ
+    update Beds
+    set patient_id = null
+    where patient_id = p_patient_id;
+
+    -- Gán giường mới
+    update Beds
+    set patient_id = p_patient_id
+    where bed_id = p_new_bed_id;
+
+    commit;
+
 end //
 
 delimiter ;
